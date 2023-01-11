@@ -1,89 +1,63 @@
 const { exec } = require("node:child_process");
-const express = require("express");
+const sanitize = require("sanitize-filename");
+const prompt = require("prompt-sync")();
 const ytdl = require("ytdl-core");
 const fs = require("node:fs");
+require("dotenv").config();
 
-const app = express();
-app.use(express.static(`${__dirname}/static`));
+const path = process.env.OUTDIR || ".\\temp";
 
-const ssus = new Map();
-
-const sus = (videoId, id) => {
+const sus = (videoId) => {
     return new Promise((resolve, reject) => {
         ytdl.getInfo(`http://www.youtube.com/watch?v=${videoId}`, { quality: 'highestaudio' }).then(info => {
             const stream = ytdl.downloadFromInfo(info, {
                 quality: 'highestaudio'
             });
 
-            stream.pipe(fs.createWriteStream(`${id}.mp4`)).on("finish", () => {
-                exec(`${__dirname}\\node_modules\\ffmpeg-static\\ffmpeg.exe -i .\\${id}.mp4 -vn -c:a mp3 ${id}.mp3`).on("error", reject).on("close", () => {
-                    exec(`del .\\${id}.mp4`).on("error", reject).on("close", () => {
-                        resolve(id);
+            const title = sanitize(info.player_response.videoDetails.title);
+            const author = info.player_response.videoDetails.author;
+            console.log(title);
+
+            const after = () => {
+                stream.pipe(fs.createWriteStream(`${path}\\${title}.mp4`)).on("finish", () => {
+                    exec(`${__dirname}\\node_modules\\ffmpeg-static\\ffmpeg.exe -i "${path}\\${title}.mp4" -metadata title="${title}" -metadata artist="${author}" -vn -c:a mp3 "${path}\\${title}.mp3"`).on("error", reject).on("close", () => {
+                        exec(`del "${path}\\${title}.mp4"`).on("error", reject).on("close", () => {
+                            resolve(title);
+                        });
                     });
+                }).on("error", (e) => {
+                    reject(e);
                 });
-            }).on("error", (e) => {
-                reject(e);
-            });
+            }
+
+            if(fs.existsSync(`${path}\\${title}.mp4`)) {
+                const des = prompt(`Do you want to overwrite file: ${path}\\${title}.mp4? `);
+                if(!["yes", "y", "confirm"].includes(des)) return;
+                exec(`del "${path}\\${title}.mp4"`).on("error", reject).on("close", () => {
+                    return after();
+                });
+            }
+
+            if(fs.existsSync(`${path}\\${title}.mp3`)) {
+                const des = prompt(`Do you want to overwrite file: ${path}\\${title}.mp3? `);
+                if(!["yes", "y", "confirm"].includes(des)) return;
+                exec(`del "${path}\\${title}.mp3"`).on("error", reject).on("close", () => {
+                    resolve(title);
+                    return after();
+                });
+            }
+
+            after();            
         });
     });
 };
 
-const delet = (id) => {
-    exec(`del .\\${id}.mp3`).on("error", (wee) => {console.log(wee)});
-    ssus.delete(id);
+const nnn = async () => {
+    const res = prompt("Please enter the video link to download: ");
+    if (!res || res === "exit") return process.exit(0);
+    const id = ytdl.getURLVideoID(res);
+    await sus(id);
+    nnn();
 }
 
-app.get("/neynigganeyney", (req, res) => {
-    const { url, id } = req.query;
-
-    ssus.set(id, false);
-    
-    if (!url || !id) {
-        return res.status(400).send("invalid request");
-    }
-
-    sus(url.split("?v=")[1], id).then(e => {
-        ssus.set(e, true);
-    }).catch(e => {
-        ssus.set(id, "err");
-    });
-
-    res.send("Request send. <script>setTimeout(() => window.location.href = `/ready?id=" + id + "`, 2000)</script>")
-});
-
-app.get("/ready", async (req,res) => {
-    const id = req.query.id;
-
-    if(!id) {
-        return res.status(400).send("invalid request");
-    }
-
-    const entry = ssus.get(id);
-
-    if(typeof entry === "undefined") {
-        return res.status(400).send("request to invalidate a video fist");
-    }
-
-    if(!entry) {
-        return res.status(200).send("REQUEST NOT READY YET JUST WAY IT WILL RELOAD AUTOMATICALLY <script>setTimeout(() => location.reload(), 2000)</script>");
-    }
-
-    if(entry == "err") {
-        res.status(500).send("an error occurred while trying to process your request");
-        return delet(id);
-    }
-
-    if(entry) {
-        res.status(200).sendFile(`${__dirname}\\${id}.mp3`);
-        setTimeout(() => {
-            return delet(id);
-        }, 300)
-    }
-});
-
-const http = require("http");
-
-const server = http.createServer({}, app).listen(80);
-
-server.keepAliveTimeout = (60 * 1000) + 1000;
-server.headersTimeout = (60 * 1000) + 2000;
+nnn();
