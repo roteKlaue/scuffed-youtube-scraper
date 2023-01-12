@@ -6,6 +6,10 @@
     ```bash
     npm install
     ```
+ * Compiling typescript code
+   ```bash
+   tsc
+   ```
  * Create a .env file with the following properties
     ```env
     OUTDIR = path

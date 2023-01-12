@@ -1,15 +1,17 @@
-const { exec } = require("node:child_process");
-const sanitize = require("sanitize-filename");
-const prompt = require("prompt-sync")();
-const ytdl = require("ytdl-core");
-const fs = require("node:fs");
-require("dotenv").config();
+import { exec } from "node:child_process";
+import sanitize from "sanitize-filename";
+import promptsync from "prompt-sync";
+import ytdl from "ytdl-core";
+import fs from "node:fs";
+import "dotenv/config"
+
+const prompt = promptsync();
 
 const path = process.env.OUTDIR || ".\\temp";
 
-const sus = (videoId) => {
+const download = (videoId: string): Promise<string> => {
     return new Promise((resolve, reject) => {
-        ytdl.getInfo(`http://www.youtube.com/watch?v=${videoId}`, { quality: 'highestaudio' }).then(info => {
+        ytdl.getInfo(`http://www.youtube.com/watch?v=${videoId}`).then(info => {
             const stream = ytdl.downloadFromInfo(info, {
                 quality: 'highestaudio'
             });
@@ -30,34 +32,34 @@ const sus = (videoId) => {
                 });
             }
 
-            if(fs.existsSync(`${path}\\${title}.mp4`)) {
+            if (fs.existsSync(`${path}\\${title}.mp4`)) {
                 const des = prompt(`Do you want to overwrite file: ${path}\\${title}.mp4? `);
-                if(!["yes", "y", "confirm"].includes(des)) return;
+                if (!["yes", "y", "confirm"].includes(des!)) return;
                 exec(`del "${path}\\${title}.mp4"`).on("error", reject).on("close", () => {
                     return after();
                 });
             }
 
-            if(fs.existsSync(`${path}\\${title}.mp3`)) {
+            if (fs.existsSync(`${path}\\${title}.mp3`)) {
                 const des = prompt(`Do you want to overwrite file: ${path}\\${title}.mp3? `);
-                if(!["yes", "y", "confirm"].includes(des)) return;
+                if (!["yes", "y", "confirm"].includes(des!)) return;
                 exec(`del "${path}\\${title}.mp3"`).on("error", reject).on("close", () => {
                     resolve(title);
                     return after();
                 });
             }
 
-            after();            
+            after();
         });
     });
 };
 
-const nnn = async () => {
+const _interface = async () => {
     const res = prompt("Please enter the video link to download: ");
     if (!res || res === "exit") return process.exit(0);
     const id = ytdl.getURLVideoID(res);
-    await sus(id);
-    nnn();
+    await download(id);
+    _interface();
 }
 
-nnn();
+_interface();
